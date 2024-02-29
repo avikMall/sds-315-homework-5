@@ -1,0 +1,196 @@
+---
+title: "Homework 5"
+author: "Avik Malladi"
+date: "2024-02-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message= FALSE)
+```
+
+``` {r}
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(mosaic)
+library(knitr)
+```
+
+Name: Avik Malladi
+EID: arm7542
+Github: https://github.com/avikMall/sds-315-homework-5
+
+## Problem 1 - Iron Bank
+
+Null Hypothesis: The null hypothesis being tested is that securities trades from the Iron Bank are flagged at the same baseline rate of 2.4% as trades from other traders.
+
+Test Statistic: The test statistic used to measure evidence against the null hypothesis is the number of flagged trades out of the total number of trades (70 out of 2021).
+
+Monte Carlo Simulation:
+
+``` {r}
+total_trades <- 2021
+flagged_trades <- 70
+baseline_rate <- 0.024
+
+sim_trades <- do(100000)*nflip(n=total_trades, prob = baseline_rate)
+
+p_value <- mean(sim_trades >= flagged_trades)
+
+hist(sim_trades$nflip, breaks = 30, probability = TRUE, col = "skyblue", border = "black", 
+     main = "Distribution of Flagged Trades",
+     xlab = "Number of Flagged Trades", ylab = "Probability Density")
+abline(v = flagged_trades, col = "red", lty = 2)
+```
+
+
+The p-value itself is `r p_value`.
+
+Conclusion: The null hypothesis does not seem completely plausible because of the extremely low p-value and the few number of monte carlo simulations that resulted in 70 or more flagged trades. 
+
+
+## Problem 2 - Health Inspections
+
+Null Hypothesis: The null hypothesis being tested is that the rate of health code violations at Gourmet Bites is the same as the citywide average of 3%.
+
+Test Statistic: The test statistic used to measure evidence against the null hypothesis is the number of health code violations reported during inspections at Gourmet Bites.
+
+Monte Carlo Simulation:
+
+``` {r}
+total_inspections <- 1500
+inspections_at_gourmet_bites <- 50
+
+violations_at_gourmet_bites <- 8
+
+baseline_rate <- 0.03
+
+sim_inspections <- do(100000)*nflip(n=inspections_at_gourmet_bites, prob = baseline_rate)
+p_value <- mean(sim_inspections >= violations_at_gourmet_bites)
+
+hist(sim_inspections$nflip, breaks = 30, probability = TRUE, col = "skyblue", border = "black", 
+     main = "Distribution of Inspection Violations",
+     xlab = "Number of Violations", ylab = "Probability Density")
+abline(v = violations_at_gourmet_bites, col = "red", lty = 2)
+```
+
+The p-value itself is:
+
+``` {r}
+p_value
+```
+
+Conclusion: The observed data for Gourmet Bites is not consistent with the Health Department’s null hypothesis that, on average, restaurants in the city are cited for health code violations at the same 3% baseline rate. In fact, Gourmet Bites is cited for violations at a much higher rate than normal.
+
+
+## Problem 3: LLM Watermarking
+
+## Part A
+
+``` {r}
+sentences <- readLines("brown_sentences.txt")
+
+# Step 2: Preprocess the text
+clean_text <- function(sentence) {
+  clean <- gsub("[^A-Za-z]", "", sentence)
+  clean <- toupper(clean)
+  return(clean)
+}
+
+clean_sentences <- lapply(sentences, clean_text)
+
+# Step 3: Calculate letter count
+calculate_letter_counts <- function(text) {
+  counts <- table(strsplit(text, "")[[1]])
+  counts <- counts[names(counts) %in% LETTERS]
+  counts[is.na(counts)] <- 0
+  return(counts)
+}
+
+letter_counts <- lapply(clean_sentences, calculate_letter_counts)
+
+# Step 4: Compare with expected count
+letter_frequencies <- read.csv("letter_frequencies.csv")
+
+calculate_expected_counts <- function(letter_count) {
+  total_letters <- sum(letter_count)
+  expected_counts <- total_letters * letter_frequencies$Probability
+  expected_counts <- expected_counts[match(names(letter_count), letter_frequencies$Letter)]
+  return(expected_counts)
+}
+
+expected_counts <- lapply(letter_counts, calculate_expected_counts)
+
+# Step 5: Compute the chi-squared statistic
+calculate_chi_squared <- function(observed_counts, expected_counts) {
+  chi_squared_stat <- sum((observed_counts - expected_counts)^2 / expected_counts)
+  return(chi_squared_stat)
+}
+
+chi_squared_stats <- mapply(calculate_chi_squared, letter_counts, expected_counts)
+
+# Step 6: Compile the distribution
+null_distribution <- unlist(chi_squared_stats)
+hist(null_distribution, breaks = 20, main = "Null Distribution of Chi-squared Statistic",
+     xlab = "Chi-squared Statistic")
+
+```
+
+## Part B
+
+``` {r}
+sentences <- c(
+  "She opened the book and started to read the first chapter, eagerly anticipating what might come next.",
+  "Despite the heavy rain, they decided to go for a long walk in the park, crossing the main avenue by the fountain in the center.",
+  "The museum’s new exhibit features ancient artifacts from various civilizations around the world.",
+  "He carefully examined the document, looking for any clues that might help solve the mystery.",
+  "The students gathered in the auditorium to listen to the guest speaker’s inspiring lecture.",
+  "Feeling vexed after an arduous and zany day at work, she hoped for a peaceful and quiet evening at home, cozying up after a quick dinner with some TV, or maybe a book on her upcoming visit to Auckland.",
+  "The chef demonstrated how to prepare a delicious meal using only locally sourced ingredients, focusing mainly on some excellent dinner recipes from Spain.",
+  "They watched the sunset from the hilltop, marveling at the beautiful array of colors in the sky.",
+  "The committee reviewed the proposal and provided many points of useful feedback to improve the project’s effectiveness.",
+  "Despite the challenges faced during the project, the team worked tirelessly to ensure its successful completion, resulting in a product that exceeded everyone’s expectations."
+)
+
+# Preprocess the text
+clean_text <- function(sentence) {
+  clean <- gsub("[^A-Za-z]", "", sentence)
+  clean <- toupper(clean)
+  return(clean)
+}
+
+clean_sentences <- lapply(sentences, clean_text)
+
+# Function to calculate p-value
+calculate_p_value <- function(sentence, null_distribution) {
+  # Calculate chi-squared statistic for the sentence
+  observed_counts <- table(strsplit(sentence, "")[[1]])
+  observed_counts <- observed_counts[names(observed_counts) %in% LETTERS]
+  observed_counts[is.na(observed_counts)] <- 0
+  total_letters <- sum(observed_counts)
+  
+  expected_counts <- total_letters * letter_frequencies$Probability
+  expected_counts <- expected_counts[match(names(observed_counts), letter_frequencies$Letter)]
+  
+  chi_squared_stat <- sum((observed_counts - expected_counts)^2 / expected_counts)
+  
+  p_value <- sum(null_distribution >= chi_squared_stat) / length(null_distribution)
+  return(p_value)
+}
+
+# Calculate p-values for each sentence
+p_values <- sapply(clean_sentences, calculate_p_value, null_distribution)
+
+result_table <- data.frame(
+  Sentence = sentences,
+  P_Value = round(p_values, 3)
+)
+
+knitr::kable(result_table)
+```
+
+Based on the table, the sentence that is most likely generated by AI is the sentence "Feeling vexed after an arduous and zany day at work, she hoped for a peaceful and quiet evening at home, cozying up after a quick dinner with some TV, or maybe a book on her upcoming visit to Auckland." This is because it's p-value is the most different from the others being less than 1% of all sentences formed. 
+
+
